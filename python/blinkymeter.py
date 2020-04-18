@@ -7,30 +7,31 @@ import time as _time
 
 from blinkytapelib import *
 
-def fetch_data():
+_yellow_light = Light
+_green_light = Light(0, 255, 0)
+_solid_red_light = Light(255, 0, 0)
+_blinky_red_light = Light(255, 0, 0, blinky=True)
+
+def fetch_data(data_url):
     data = None
     error = None
 
     try:
-        data = _requests.get("https://blinky-rhm.cloud.paas.psi.redhat.com/data.json").json()
+        data = _requests.get(data_url).json()
     except Exception as e:
         print(e)
         error = e
 
     return data, error
 
-def show_error(display):
+def show_fetch_error(display):
     display.clear()
-    display.update(59, Light(255, 255, 0))
+    display.update(59, _yellow_light)
 
 def show_results(display, data):
-    pass_light = Light(0, 255, 0)
-    fail_light = Light(255, 0, 0)
-    blinky_fail_light = Light(255, 0, 0, blinky=True)
-
-    pass_lights = list()
-    fail_lights = list()
-    blinky_fail_lights = list()
+    green_lights = list()
+    solid_red_lights = list()
+    blinky_red_lights = list()
 
     for job_id, job_data in data["jobs"].items():
         result = job_data["current_result"]
@@ -47,17 +48,17 @@ def show_results(display, data):
             continue
 
         if result["status"] == "PASSED":
-            pass_lights.append(pass_light)
+            green_lights.append(_green_light)
 
         if result["status"] == "FAILED":
             prev = job_data["previous_result"]
 
             if prev is not None and prev["status"] == "PASSED":
-                blinky_fail_lights.append(blinky_fail_light)
+                blinky_red_lights.append(_blinky_red_light)
             else:
-                fail_lights.append(fail_light)
+                solid_red_lights.append(_solid_red_light)
 
-    lights = blinky_fail_lights + fail_lights + pass_lights
+    lights = blinky_red_lights + solid_red_lights + green_lights
 
     display.clear()
 
@@ -65,14 +66,17 @@ def show_results(display, data):
         display.update(j, lights[i])
 
 def main():
+    device_port = _sys.argv[1]
+    data_url = _sys.argv[2]
+
     display = Display()
 
-    with DisplayThread(display, _sys.argv[1]):
+    with DisplayThread(display, device_port):
         while True:
-            data, error = fetch_data()
+            data, error = fetch_data(data_url)
 
             if error:
-                show_error(display)
+                show_fetch_error(display)
             else:
                 show_results(display, data)
 

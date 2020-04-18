@@ -13,8 +13,7 @@ class Display:
         self._updates = _collections.deque()
 
     def clear(self):
-        for i in range(60):
-            self.update(i, _dark_light)
+        self.update(None, _dark_light)
 
     def update(self, index, light):
         self._updates.appendleft((index, light))
@@ -22,11 +21,14 @@ class Display:
     def _process_updates(self):
         while True:
             try:
-                update = self._updates.pop()
+                index, light = self._updates.pop()
             except IndexError:
                 break
 
-            self._lights[update[0]] = update[1]
+            if index is None:
+                self._lights = [light for x in range(60)]
+            else:
+                self._lights[index] = light
 
 class Light:
     def __init__(self, red=0, green=0, blue=0, blinky=False):
@@ -56,7 +58,7 @@ class DisplayThread(_threading.Thread):
 
     def run(self):
         with self._device.open():
-            while not self._stopping.is_set():
+            while True:
                 self._display._process_updates()
 
                 for light in self._display._lights:
@@ -73,6 +75,10 @@ class DisplayThread(_threading.Thread):
 
                 self._device.show()
                 _time.sleep(0.1)
+
+                if self._stopping.is_set():
+                    self._device.clear()
+                    break
 
 class _Device:
     def __init__(self, port):
@@ -101,22 +107,6 @@ class _Device:
         self._serial.write(b"\xFF")
         self.flush()
 
-def _main():
-    display = Display()
-
-    with DisplayThread(display, _sys.argv[1]):
-        for i in range(12):
-            if i % 3 == 0:
-                display.update(0, Light(255, 0, 0))
-            elif i % 3 == 1:
-                display.update(0, Light(0, 255, 0))
-            else:
-                display.update(0, Light(0, 0, 255))
-
-            _time.sleep(1)
-
-if __name__ == "__main__":
-    try:
-        _main()
-    except KeyboardInterrupt:
-        pass
+    def clear(self):
+        self.write(b"\x00\x00\x00" * 60)
+        self.show()
