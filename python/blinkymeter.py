@@ -7,22 +7,19 @@ import time as _time
 
 from blinkytapelib import *
 
-_yellow_light = Light
+_yellow_light = Light(255, 255, 0)
 _green_light = Light(0, 255, 0)
 _solid_red_light = Light(255, 0, 0)
 _blinky_red_light = Light(255, 0, 0, blinky=True)
 
 def fetch_data(data_url):
-    data = None
-    error = None
-
     try:
-        data = _requests.get(data_url).json()
+        response = _requests.get(data_url)
+        response.raise_for_status()
     except Exception as e:
-        print(e)
-        error = e
+        return None, e
 
-    return data, error
+    return response.json(), None
 
 def show_fetch_error(display):
     display.clear()
@@ -37,14 +34,6 @@ def show_results(display, data):
         result = job_data["current_result"]
 
         if result is None:
-            continue
-
-        group_id = job_data["group_id"]
-        group_data = data["groups"][str(group_id)]
-        category_id = group_data["category_id"]
-        category_data = data["categories"][str(category_id)]
-
-        if category_data["key"] == "broker":
             continue
 
         if result["status"] == "PASSED":
@@ -66,9 +55,7 @@ def show_results(display, data):
         display.update(j, lights[i])
 
 def main():
-    device_port = _sys.argv[1]
-    data_url = _sys.argv[2]
-
+    device_port, data_url = _sys.argv[1:]
     display = Display()
 
     with DisplayThread(display, device_port):
@@ -80,8 +67,8 @@ def main():
             else:
                 show_results(display, data)
 
-            for i in range(60):
-                _time.sleep(1)
+            for i in range(30):
+                _time.sleep(2)
 
 if __name__ == "__main__":
     try:

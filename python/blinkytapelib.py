@@ -6,6 +6,7 @@ import struct as _struct
 import sys as _sys
 import threading as _threading
 import time as _time
+import traceback as _traceback
 
 class Display:
     def __init__(self):
@@ -57,6 +58,19 @@ class DisplayThread(_threading.Thread):
         self._stopping.set()
 
     def run(self):
+        while True:
+            try:
+                self.do_run()
+            except KeyboardInterrupt:
+                raise
+            except OSError:
+                pass
+            except:
+                _traceback.print_exc()
+
+            _time.sleep(1)
+
+    def do_run(self):
         with self._device.open():
             while True:
                 self._display._process_updates()
@@ -86,10 +100,7 @@ class _Device:
         self._serial = None
 
     def open(self):
-        assert self._serial is None
-
-        self._serial = _serial.Serial(self._port, 115200)
-
+        self._serial = _serial.Serial(self._port, 115200, exclusive=True)
         return self._serial
 
     def write(self, pixel_bytes):
@@ -101,7 +112,7 @@ class _Device:
 
     def flush(self):
         self._serial.flush()
-        self._serial.flushInput()
+        self._serial.reset_input_buffer()
 
     def show(self):
         self._serial.write(b"\xFF")
