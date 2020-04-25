@@ -2,7 +2,7 @@ export PYTHONPATH := python
 
 .PHONY: run
 run:
-	python3 python/blinkymeter.py /dev/ttyACM0 "https://blinky-rhm.cloud.paas.psi.redhat.com/data.json"
+	python3 python/blinkymeter.py /dev/ttyACM0 ${BLINKY_DATA_URL}
 
 .PHONY: clean
 clean:
