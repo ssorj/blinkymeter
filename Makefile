@@ -2,7 +2,7 @@ export PYTHONPATH := python
 
 .PHONY: run
 run:
-	python3 python/blinkymeter.py /dev/ttyACM0 ${BLINKY_DATA_URL}
+	python3 python/blinkymeter.py ${BLINKY_DATA_URL} /dev/ttyACM0 /dev/ttyACM1 /dev/ttyACM2
 
 .PHONY: clean
 clean:

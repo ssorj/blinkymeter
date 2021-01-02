@@ -8,7 +8,7 @@ import threading as _threading
 import time as _time
 import traceback as _traceback
 
-class Display:
+class Tape:
     def __init__(self):
         self._lights = [_dark_light for x in range(60)]
         self._updates = _collections.deque()
@@ -32,20 +32,19 @@ class Display:
                 self._lights[index] = light
 
 class Light:
-    def __init__(self, red=0, green=0, blue=0, blinky=False):
+    def __init__(self, red=0, green=0, blue=0):
         self._bytes = _struct.pack("BBB", red, green, blue)
-        self._blinky = blinky
 
     def __repr__(self):
-        return f"{self.__class__.__name__}({self._bytes},{self._blinky})"
+        return f"{self.__class__.__name__}({self._bytes})"
 
 _dark_light = Light()
 
-class DisplayThread(_threading.Thread):
-    def __init__(self, display, device_port):
+class TapeThread(_threading.Thread):
+    def __init__(self, tape, device_port):
         super().__init__()
 
-        self._display = display
+        self._tape = tape
         self._device = _Device(device_port)
 
         self._stopping = _threading.Event()
@@ -55,10 +54,16 @@ class DisplayThread(_threading.Thread):
         return self
 
     def __exit__(self, *exc):
+        self.stop()
+
+    def stop(self):
         self._stopping.set()
 
     def run(self):
         while True:
+            if self._stopping.is_set():
+                break
+
             try:
                 self.do_run()
             except KeyboardInterrupt:
@@ -68,27 +73,19 @@ class DisplayThread(_threading.Thread):
             except:
                 _traceback.print_exc()
 
-            _time.sleep(1)
+            _time.sleep(2)
 
     def do_run(self):
         with self._device.open():
             while True:
-                self._display._process_updates()
+                self._tape._process_updates()
 
-                for light in self._display._lights:
+                for light in self._tape._lights:
                     self._device.write(light._bytes)
 
                 self._device.show()
-                _time.sleep(2.9)
 
-                for light in self._display._lights:
-                    if light._blinky:
-                        self._device.write(_dark_light._bytes)
-                    else:
-                        self._device.write(light._bytes)
-
-                self._device.show()
-                _time.sleep(0.1)
+                _time.sleep(2)
 
                 if self._stopping.is_set():
                     self._device.clear()

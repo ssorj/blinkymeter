@@ -9,8 +9,7 @@ from blinkytapelib import *
 
 _yellow_light = Light(255, 255, 0)
 _green_light = Light(0, 255, 0)
-_solid_red_light = Light(255, 0, 0)
-_blinky_red_light = Light(255, 0, 0, blinky=True)
+_red_light = Light(255, 0, 0)
 
 def fetch_data(data_url):
     try:
@@ -21,16 +20,21 @@ def fetch_data(data_url):
 
     return response.json(), None
 
-def show_fetch_error(display):
-    display.clear()
-    display.update(59, _yellow_light)
+def show_fetch_error(tape):
+    tape.clear()
+    tape.update(59, _yellow_light)
 
-def show_results(display, data):
+def show_results(tape, data, categories):
     green_lights = list()
-    solid_red_lights = list()
-    blinky_red_lights = list()
+    red_lights = list()
 
     for job_id, job_data in data["jobs"].items():
+        group_data = data["groups"][str(job_data["group_id"])]
+        category_data = data["categories"][str(group_data["category_id"])]
+
+        if category_data["key"] not in categories:
+            continue
+
         result = job_data["current_result"]
 
         if result is None:
@@ -40,35 +44,55 @@ def show_results(display, data):
             green_lights.append(_green_light)
 
         if result["status"] == "FAILED":
-            prev = job_data["previous_result"]
+            red_lights.append(_red_light)
 
-            if prev is not None and prev["status"] == "PASSED":
-                blinky_red_lights.append(_blinky_red_light)
-            else:
-                solid_red_lights.append(_solid_red_light)
+    lights = red_lights + green_lights
 
-    lights = blinky_red_lights + solid_red_lights + green_lights
-
-    display.clear()
+    tape.clear()
 
     for i, j in enumerate(range(59, -1, -2)):
-        display.update(j, lights[i])
+        if i == len(lights):
+            break
+
+        tape.update(j, lights[i])
 
 def main():
-    device_port, data_url = _sys.argv[1:]
-    display = Display()
+    data_url = _sys.argv[1]
+    device_mappings = _sys.argv[2:]
 
-    with DisplayThread(display, device_port):
+    tapes = list()
+    threads = list()
+
+    for device, categories in zip(device_mappings[0::2], device_mappings[1::2]):
+        categories = categories.split(",")
+        tape = Tape()
+        thread = TapeThread(tape, device)
+
+        tapes.append((tape, categories))
+        threads.append(thread)
+
+    for thread in threads:
+        thread.start()
+
+    try:
         while True:
             data, error = fetch_data(data_url)
 
             if error:
-                show_fetch_error(display)
+                for tape, _ in tapes:
+                    show_fetch_error(tape)
             else:
-                show_results(display, data)
+                for tape, categories in tapes:
+                    show_results(tape, data, categories)
 
             for i in range(30):
                 _time.sleep(2)
+    finally:
+        for thread in threads:
+            thread.stop()
+
+    for thread in threads:
+        thread.join()
 
 if __name__ == "__main__":
     try:
